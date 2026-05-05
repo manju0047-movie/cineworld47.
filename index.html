@@ -1,50 +1,64 @@
-<script>
-    const API_KEY = 'd5155e13adbb6408a66943ef38d66367';
-    const grid = document.getElementById('grid');
-
-    async function loadMovies(lang = '', query = '') {
-        grid.innerHTML = "<p style='grid-column: span 3; text-align: center; margin-top: 50px; color: #eab308;'>Fetching Movies...</p>";
-        
-        let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&sort_by=popularity.desc`;
-        if (query) url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}`;
-        else if (lang) url += `&with_original_language=${lang}`;
-
-        try {
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            grid.innerHTML = data.results.map(m => `
-                <div class="card" onclick="playMovie(${m.id})">
-                    <div class="badge">${m.release_date ? m.release_date.split('-')[0] : '2026'} <span style="color:#eab308">HD</span></div>
-                    <img class="poster" src="https://image.tmdb.org/t/p/w342${m.poster_path}" onerror="this.src='https://via.placeholder.com/342x513?text=MG+Movies'">
-                    <div class="movie-title">${m.title}</div>
-                    <div style="font-size: 8px; color: #64748b; font-weight: bold;">MULTI AUDIO</div>
-                </div>
-            `).join('');
-        } catch (e) {
-            grid.innerHTML = "<p style='grid-column: span 3; text-align: center;'>Connection Error</p>";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineWorld 47</title>
+    <style>
+        body { background-color: #06090f; color: white; font-family: sans-serif; margin: 0; padding: 0; }
+        header { background: #06090f; padding: 15px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 100; text-align: center; }
+        .logo { color: #eab308; font-weight: 900; font-size: 24px; text-transform: uppercase; margin-bottom: 10px; }
+        .search-box { width: 90%; background: #111827; border: 1px solid #374151; padding: 12px; border-radius: 8px; color: white; font-size: 14px; }
+        .movie-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; }
+        .card { position: relative; cursor: pointer; }
+        .poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; background: #111827; border: 1px solid #1e293b; }
+        .movie-title { font-size: 10px; font-weight: bold; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #player { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 200; }
+        .close-btn { background: #ef4444; color: white; border: none; width: 100%; padding: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">CineWorld 47</div>
+        <input type="text" id="search" class="search-box" placeholder="Search movies...">
+    </header>
+    <div id="grid" class="movie-grid">
+        <p style="grid-column: span 3; text-align: center; margin-top: 50px;">Loading Movies...</p>
+    </div>
+    <div id="player">
+        <button class="close-btn" onclick="closePlayer()">✕ CLOSE</button>
+        <iframe id="cinema-frame" style="width:100%; height:90%; border:none;" allowfullscreen></iframe>
+    </div>
+    <script>
+        const API_KEY = 'd5155e13adbb6408a66943ef38d66367';
+        async function loadMovies(query = '') {
+            const grid = document.getElementById('grid');
+            let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&sort_by=popularity.desc`;
+            if (query) url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}`;
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                grid.innerHTML = data.results.map(m => `
+                    <div class="card" onclick="playMovie(${m.id})">
+                        <img class="poster" src="https://image.tmdb.org/t/p/w342${m.poster_path}" onerror="this.src='https://via.placeholder.com/342x513?text=No+Image'">
+                        <div class="movie-title">${m.title}</div>
+                    </div>
+                `).join('');
+            } catch (e) { grid.innerHTML = "Error loading movies."; }
         }
-    }
-
-    function playMovie(id) {
-        const player = document.getElementById('player');
-        const iframe = document.getElementById('cinema-frame');
-        
-        // CHANGED TO A MORE STABLE SERVER FOR MOBILE
-        iframe.src = `https://vidsrc.me/embed/movie?tmdb=${id}`;
-        
-        player.style.display = 'block';
-    }
-
-    function closePlayer() {
-        document.getElementById('cinema-frame').src = '';
-        document.getElementById('player').style.display = 'none';
-    }
-
-    document.getElementById('search').addEventListener('input', (e) => {
-        if(e.target.value.length > 2) loadMovies('', e.target.value);
-        else if(e.target.value.length === 0) loadMovies();
-    });
-
-    loadMovies();
-</script>
+        function playMovie(id) {
+            document.getElementById('cinema-frame').src = `https://vidsrc.me/embed/movie?tmdb=${id}`;
+            document.getElementById('player').style.display = 'block';
+        }
+        function closePlayer() {
+            document.getElementById('cinema-frame').src = '';
+            document.getElementById('player').style.display = 'none';
+        }
+        document.getElementById('search').addEventListener('input', (e) => {
+            if(e.target.value.length > 2) loadMovies(e.target.value);
+            else if(e.target.value.length === 0) loadMovies();
+        });
+        loadMovies();
+    </script>
+</body>
+</html>

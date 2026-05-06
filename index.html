@@ -13,18 +13,17 @@
         #search { width: 90%; padding: 12px; border-radius: 50px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; }
 
         .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 15px; scrollbar-width: none; background: #0d1117; }
-        .tab { background: #21262d; color: #8b949e; border: 1px solid #30363d; padding: 8px 18px; border-radius: 20px; font-size: 10px; font-weight: bold; white-space: nowrap; }
+        .tab { background: #21262d; color: #8b949e; border: 1px solid #30363d; padding: 8px 18px; border-radius: 20px; font-size: 10px; font-weight: bold; white-space: nowrap; outline: none; }
         .tab.active { background: var(--gold); color: black; }
 
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; }
-        .card { border-radius: 8px; overflow: hidden; background: var(--card); border: 1px solid #30363d; aspect-ratio: 2/3; position: relative; }
+        .card { border-radius: 8px; overflow: hidden; background: var(--card); border: 1px solid #30363d; aspect-ratio: 2/3; position: relative; cursor: pointer; }
         .poster { width: 100%; height: 100%; object-fit: cover; }
-        .quality-badge { position: absolute; top: 5px; left: 5px; background: var(--uhd); color: white; font-size: 7px; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
+        .quality-badge { position: absolute; top: 5px; left: 5px; background: var(--uhd); color: white; font-size: 7px; padding: 2px 5px; border-radius: 3px; font-weight: bold; z-index: 10; }
 
-        /* UHD Pro Player */
         #player-ui { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; }
         .p-nav { display: flex; flex-wrap: wrap; justify-content: space-between; padding: 10px; background: #000; align-items: center; border-bottom: 1px solid #333; gap: 5px; }
-        .p-btn { border: none; padding: 8px 12px; border-radius: 6px; font-weight: 800; font-size: 10px; }
+        .p-btn { border: none; padding: 8px 12px; border-radius: 6px; font-weight: 800; font-size: 10px; cursor: pointer; }
         .exit { background: #f85149; color: white; }
         .fix { background: var(--gold); color: black; }
         .uhd-btn { background: var(--uhd); color: white; }
@@ -35,7 +34,7 @@
 
 <header>
     <div class="logo">CineWorld 47</div>
-    <input type="text" id="search" placeholder="Search 4K Movies...">
+    <input type="text" id="search" placeholder="Search 4K Movies & Press Enter...">
     <div class="tabs">
         <button class="tab active" onclick="setLang('kn', this)">KANNADA</button>
         <button class="tab" onclick="setLang('ta', this)">TAMIL</button>
@@ -61,39 +60,64 @@
     const API_KEY = 'd5155e13adbb6408a66943ef38d66367';
     let curL = 'kn', curE = '', curID = '', sIdx = 0;
 
+    // Search trigger
+    document.getElementById('search').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') { searchMovies(this.value); }
+    });
+
+    async function searchMovies(query) {
+        if (!query) return load();
+        const grid = document.getElementById('grid');
+        grid.innerHTML = "<div style='grid-column:span 3;text-align:center;padding:50px;'>🔍 Searching...</div>";
+        const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        renderGrid(data.results);
+    }
+
     async function load() {
         const grid = document.getElementById('grid');
-        grid.innerHTML = "<div style='grid-column:span 3;text-align:center;padding:50px;'>⚡ Loading 4K Library...</div>";
+        grid.innerHTML = "<div style='grid-column:span 3;text-align:center;padding:50px;'>⚡ Loading...</div>";
         let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&sort_by=popularity.desc&with_original_language=${curL}`;
         if(curE) url += `&primary_release_date.gte=${curE}0-01-01`;
-
         const res = await fetch(url);
         const data = await res.json();
-        grid.innerHTML = data.results.map(m => `
+        renderGrid(data.results);
+    }
+
+    function renderGrid(movies) {
+        const grid = document.getElementById('grid');
+        if (!movies || movies.length === 0) {
+            grid.innerHTML = "<div style='grid-column:span 3;text-align:center;padding:50px;'>❌ No Movies Found</div>";
+            return;
+        }
+        grid.innerHTML = movies.map(m => `
             <div class="card" onclick="play('${m.id}')">
                 <span class="quality-badge">4K UHD</span>
-                <img class="poster" src="https://image.tmdb.org/t/p/w342${m.poster_path}">
+                <img class="poster" src="${m.poster_path ? 'https://image.tmdb.org/t/p/w342' + m.poster_path : 'https://via.placeholder.com/342x513?text=No+Poster'}">
             </div>
         `).join('');
     }
 
-    function setLang(l, b) { resetTabs(b); curL = l; curE = ''; load(); }
-    function setEra(e, b) { resetTabs(b); curE = e; load(); }
-    function resetTabs(b) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); b.classList.add('active'); }
-
-    function play(id) {
-        curID = id; sIdx = 0;
+    // --- IMPROVED PLAY LOGIC (FIX FOR WRONG VIDEOS) ---
+    async function play(tmdbId) {
         document.getElementById('player-ui').style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        
+        // Fetch IMDb ID for precise matching
+        const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${API_KEY}`);
+        const ids = await res.json();
+        
+        // Prefer IMDb ID, fallback to TMDB ID
+        curID = ids.imdb_id || tmdbId; 
+        sIdx = 0;
         repair();
     }
 
-    function force4K() {
-        sIdx = 2; 
-        repair();
-    }
+    function force4K() { sIdx = 2; repair(); }
 
     function repair() {
         const container = document.getElementById('video-frame-container');
+        // Using common servers that support both TMDB and IMDb IDs
         const list = [
             `https://vidsrc.vip/embed/movie/${curID}`,
             `https://vidsrc.pm/embed/movie/${curID}`,
@@ -117,7 +141,12 @@
     function closeP() {
         document.getElementById('video-frame-container').innerHTML = "";
         document.getElementById('player-ui').style.display = 'none';
+        document.body.style.overflow = 'auto';
     }
+
+    function setLang(l, b) { resetTabs(b); curL = l; curE = ''; load(); }
+    function setEra(e, b) { resetTabs(b); curE = e; load(); }
+    function resetTabs(b) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); b.classList.add('active'); }
 
     window.onload = () => load();
 </script>
